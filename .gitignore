@@ -1,0 +1,33 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+
+# Environment files
+.env
+.env.local
+
+# Databricks credentials (NEVER commit these!)
+.databrickscfg
+token-cache.json
+
+# Local backup directories
+databricks_backups/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+temp_*
+*.tmp
+

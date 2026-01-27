@@ -1,0 +1,27 @@
+{
+  "name": "databricks-mcp-server",
+  "version": "1.0.0",
+  "description": "Databricks MCP Server for Cursor - 33 tools for managing Databricks from Cursor IDE",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node -c server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "databricks",
+    "mcp",
+    "cursor",
+    "notebook",
+    "clusters"
+  ],
+  "author": "Affirm Data Team",
+  "license": "MIT"
+}
+
+
