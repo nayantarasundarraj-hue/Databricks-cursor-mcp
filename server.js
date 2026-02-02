@@ -125,14 +125,24 @@ class DatabricksCLIMCPServer {
 
   async runNotebook(notebookPath, clusterId, notebookParams = {}) {
     try {
-      // Build the notebook task JSON
+      // Sanitize notebook name for task_key (alphanumeric, underscore, hyphen only)
+      const notebookName = notebookPath.split('/').pop();
+      const taskKey = notebookName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      
+      // Build the notebook task JSON for Jobs Submit API
+      // Must have tasks array with task_key, existing_cluster_id, and notebook_task
       const taskJson = {
-        run_name: `Notebook run: ${notebookPath.split('/').pop()}`,
-        existing_cluster_id: clusterId,
-        notebook_task: {
-          notebook_path: notebookPath,
-          base_parameters: notebookParams
-        }
+        run_name: `Notebook run: ${notebookName}`,
+        tasks: [
+          {
+            task_key: taskKey,
+            existing_cluster_id: clusterId,
+            notebook_task: {
+              notebook_path: notebookPath,
+              base_parameters: notebookParams
+            }
+          }
+        ]
       };
 
       // Submit the run using databricks jobs submit
