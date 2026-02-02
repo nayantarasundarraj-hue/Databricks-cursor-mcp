@@ -135,9 +135,9 @@ class DatabricksCLIMCPServer {
         }
       };
 
-      // Submit the run using databricks runs submit
+      // Submit the run using databricks jobs submit
       const jsonString = JSON.stringify(taskJson).replace(/"/g, '\\"');
-      const output = await this.executeCLI(`databricks runs submit --json "${jsonString}" --output json`);
+      const output = await this.executeCLI(`databricks jobs submit --json "${jsonString}" --output json`);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to run notebook: ${error.message}`);
@@ -146,7 +146,7 @@ class DatabricksCLIMCPServer {
 
   async getRun(runId) {
     try {
-      const output = await this.executeCLI(`databricks runs get ${runId} --output json`);
+      const output = await this.executeCLI(`databricks jobs get-run ${runId} --output json`);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get run: ${error.message}`);
@@ -155,7 +155,7 @@ class DatabricksCLIMCPServer {
 
   async getRunOutput(runId) {
     try {
-      const output = await this.executeCLI(`databricks runs get-output ${runId} --output json`);
+      const output = await this.executeCLI(`databricks jobs get-run-output ${runId} --output json`);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get run output: ${error.message}`);
@@ -164,7 +164,7 @@ class DatabricksCLIMCPServer {
 
   async cancelRun(runId) {
     try {
-      const output = await this.executeCLI(`databricks runs cancel ${runId} --output json`);
+      const output = await this.executeCLI(`databricks jobs cancel-run ${runId} --output json`);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to cancel run: ${error.message}`);
@@ -173,7 +173,7 @@ class DatabricksCLIMCPServer {
 
   async listRuns(limit = 25) {
     try {
-      const output = await this.executeCLI(`databricks runs list --limit ${limit} --output json`);
+      const output = await this.executeCLI(`databricks jobs list-runs --limit ${limit} --output json`);
       const result = JSON.parse(output);
       return result.runs || [];
     } catch (error) {
