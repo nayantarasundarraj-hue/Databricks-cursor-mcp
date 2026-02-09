@@ -7,7 +7,7 @@ Your Databricks MCP Server is a **complete Git repository** ready for GitHub!
 ```
 📦 ~/databricks-mcp-server/
 │
-├── 🌟 server.js                           (1,380 lines, 33 tools)
+├── 🌟 server.js                           (1,380 lines, 30 tools)
 ├── 📦 package.json                        (Dependencies)
 ├── 🔒 .gitignore                          (Protects secrets)
 ├── 🗂️  .git/                              (Git initialized ✅)
@@ -38,7 +38,7 @@ git config --global user.email "your.email@affirm.com"
 
 ```bash
 cd ~/databricks-mcp-server
-git commit -m "Initial commit: Databricks MCP Server with 33 tools"
+git commit -m "Initial commit: Databricks MCP Server with 30 tools"
 ```
 
 ### 3️⃣ Create GitHub Repository
@@ -78,7 +78,7 @@ databricks auth login --profile dev
 
 Then configure Cursor (see QUICK_START_FOR_TEAMMATES.md)
 
-**33 tools** for AI-powered Databricks management!
+**30 tools** for AI-powered Databricks management!
 - Edit notebooks with auto-backup
 - Manage clusters & jobs
 - Run queries & notebooks
@@ -130,7 +130,7 @@ git pull
 ## 🎉 What You've Accomplished
 
 ✅ **Created** production-ready MCP server  
-✅ **Implemented** 33 powerful tools  
+✅ **Implemented** 30 powerful tools  
 ✅ **Documented** everything (7 guides)  
 ✅ **Secured** credentials (proper .gitignore)  
 ✅ **Initialized** Git repository  

@@ -11,7 +11,7 @@ const {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } = require('@modelcontextprotocol/sdk/types.js');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 class DatabricksCLIMCPServer {
   constructor() {
@@ -31,10 +31,28 @@ class DatabricksCLIMCPServer {
     this.setupHandlers();
   }
 
-  async executeCLI(command) {
+  // Human-in-the-Loop (HIL) confirmation for destructive operations.
+  // Returns an error message if confirm !== true, or null if confirmed.
+  requireConfirmation(toolName, description, confirm) {
+    if (confirm === true) return null;
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          status: 'CONFIRMATION_REQUIRED',
+          tool: toolName,
+          action: description,
+          message: `This is a destructive operation. Please confirm with the user before proceeding. To execute, call this tool again with confirm: true.`,
+        }, null, 2),
+      }],
+    };
+  }
+
+  async executeCLI(args) {
     try {
-      // Use databricks command (new CLI is in PATH via Homebrew)
-      // New CLI uses OAuth authentication stored in ~/.databrickscfg
+      // Uses execFileSync instead of execSync to avoid shell injection.
+      // All arguments are passed as an array, never through a shell.
+      // The Databricks CLI handles OAuth authentication via ~/.databrickscfg
       
       // Set Databricks host/profile if provided
       const env = { ...process.env };
@@ -42,10 +60,10 @@ class DatabricksCLIMCPServer {
         env.DATABRICKS_HOST = `https://${process.env.DATABRICKS_WORKSPACE_HOST}`;
       }
       if (process.env.DATABRICKS_PROFILE) {
-        env.DATABRICKS_PROFILE = process.env.DATABRICKS_PROFILE;
+        env.DATABRICKS_CONFIG_PROFILE = process.env.DATABRICKS_PROFILE;
       }
 
-      const result = execSync(command, {
+      const result = execFileSync('databricks', args, {
         encoding: 'utf-8',
         env: env,
         stdio: ['pipe', 'pipe', 'pipe']
@@ -60,7 +78,7 @@ class DatabricksCLIMCPServer {
   async listWorkspaceItems(path = '/') {
     try {
       // New CLI uses 'list' command and supports JSON output
-      const output = await this.executeCLI(`databricks workspace list ${path} --output json`);
+      const output = await this.executeCLI(['workspace', 'list', path, '--output', 'json']);
       const items = JSON.parse(output);
       
       // CLI returns array directly, not wrapped in objects
@@ -82,7 +100,7 @@ class DatabricksCLIMCPServer {
   async getNotebook(path) {
     try {
       // New CLI uses 'export' command
-      const content = await this.executeCLI(`databricks workspace export "${path}" --format SOURCE`);
+      const content = await this.executeCLI(['workspace', 'export', path, '--format', 'SOURCE']);
       
       return {
         path: path,
@@ -96,7 +114,7 @@ class DatabricksCLIMCPServer {
 
   async listClusters() {
     try {
-      const output = await this.executeCLI('databricks clusters list --output json');
+      const output = await this.executeCLI(['clusters', 'list', '--output', 'json']);
       const clusters = JSON.parse(output);
       return Array.isArray(clusters) ? clusters : clusters.clusters || [];
     } catch (error) {
@@ -106,7 +124,7 @@ class DatabricksCLIMCPServer {
 
   async listJobs() {
     try {
-      const output = await this.executeCLI('databricks jobs list --output json');
+      const output = await this.executeCLI(['jobs', 'list', '--output', 'json']);
       const jobs = JSON.parse(output);
       return Array.isArray(jobs) ? jobs : jobs.jobs || [];
     } catch (error) {
@@ -116,7 +134,7 @@ class DatabricksCLIMCPServer {
 
   async getJobDetails(jobId) {
     try {
-      const output = await this.executeCLI(`databricks jobs get ${jobId} --output json`);
+      const output = await this.executeCLI(['jobs', 'get', String(jobId), '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get job details: ${error.message}`);
@@ -145,9 +163,9 @@ class DatabricksCLIMCPServer {
         ]
       };
 
-      // Submit the run using databricks jobs submit
-      const jsonString = JSON.stringify(taskJson).replace(/"/g, '\\"');
-      const output = await this.executeCLI(`databricks jobs submit --json "${jsonString}" --output json`);
+      // Submit the run using databricks jobs submit (--no-wait returns run_id immediately)
+      const jsonString = JSON.stringify(taskJson);
+      const output = await this.executeCLI(['jobs', 'submit', '--json', jsonString, '--no-wait', '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to run notebook: ${error.message}`);
@@ -156,7 +174,7 @@ class DatabricksCLIMCPServer {
 
   async getRun(runId) {
     try {
-      const output = await this.executeCLI(`databricks jobs get-run ${runId} --output json`);
+      const output = await this.executeCLI(['jobs', 'get-run', String(runId), '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get run: ${error.message}`);
@@ -165,7 +183,7 @@ class DatabricksCLIMCPServer {
 
   async getRunOutput(runId) {
     try {
-      const output = await this.executeCLI(`databricks jobs get-run-output ${runId} --output json`);
+      const output = await this.executeCLI(['jobs', 'get-run-output', String(runId), '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get run output: ${error.message}`);
@@ -174,7 +192,7 @@ class DatabricksCLIMCPServer {
 
   async cancelRun(runId) {
     try {
-      const output = await this.executeCLI(`databricks jobs cancel-run ${runId} --output json`);
+      const output = await this.executeCLI(['jobs', 'cancel-run', String(runId), '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to cancel run: ${error.message}`);
@@ -183,7 +201,7 @@ class DatabricksCLIMCPServer {
 
   async listRuns(limit = 25) {
     try {
-      const output = await this.executeCLI(`databricks jobs list-runs --limit ${limit} --output json`);
+      const output = await this.executeCLI(['jobs', 'list-runs', '--limit', String(limit), '--output', 'json']);
       const result = JSON.parse(output);
       return result.runs || [];
     } catch (error) {
@@ -194,7 +212,7 @@ class DatabricksCLIMCPServer {
   // Cluster Management
   async startCluster(clusterId) {
     try {
-      const output = await this.executeCLI(`databricks clusters start ${clusterId} --output json`);
+      const output = await this.executeCLI(['clusters', 'start', clusterId, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to start cluster: ${error.message}`);
@@ -203,7 +221,8 @@ class DatabricksCLIMCPServer {
 
   async stopCluster(clusterId) {
     try {
-      const output = await this.executeCLI(`databricks clusters stop ${clusterId} --output json`);
+      // CLI uses 'delete' to terminate (stop) a cluster, not 'stop'
+      const output = await this.executeCLI(['clusters', 'delete', clusterId, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to stop cluster: ${error.message}`);
@@ -212,7 +231,7 @@ class DatabricksCLIMCPServer {
 
   async getClusterStatus(clusterId) {
     try {
-      const output = await this.executeCLI(`databricks clusters get ${clusterId} --output json`);
+      const output = await this.executeCLI(['clusters', 'get', clusterId, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to get cluster status: ${error.message}`);
@@ -221,7 +240,7 @@ class DatabricksCLIMCPServer {
 
   async restartCluster(clusterId) {
     try {
-      const output = await this.executeCLI(`databricks clusters restart ${clusterId} --output json`);
+      const output = await this.executeCLI(['clusters', 'restart', clusterId, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to restart cluster: ${error.message}`);
@@ -231,10 +250,12 @@ class DatabricksCLIMCPServer {
   // Job Operations
   async runJob(jobId, notebookParams = {}) {
     try {
-      const params = Object.keys(notebookParams).length > 0 
-        ? `--notebook-params '${JSON.stringify(notebookParams)}'` 
-        : '';
-      const output = await this.executeCLI(`databricks jobs run-now ${jobId} ${params} --output json`);
+      const args = ['jobs', 'run-now', String(jobId)];
+      if (Object.keys(notebookParams).length > 0) {
+        args.push('--notebook-params', JSON.stringify(notebookParams));
+      }
+      args.push('--output', 'json');
+      const output = await this.executeCLI(args);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to run job: ${error.message}`);
@@ -243,7 +264,7 @@ class DatabricksCLIMCPServer {
 
   async getJobRuns(jobId, limit = 25) {
     try {
-      const output = await this.executeCLI(`databricks jobs list-runs --job-id ${jobId} --limit ${limit} --output json`);
+      const output = await this.executeCLI(['jobs', 'list-runs', '--job-id', String(jobId), '--limit', String(limit), '--output', 'json']);
       const result = JSON.parse(output);
       return result.runs || [];
     } catch (error) {
@@ -254,7 +275,7 @@ class DatabricksCLIMCPServer {
   // DBFS Operations
   async listDbfs(path = '/') {
     try {
-      const output = await this.executeCLI(`databricks fs ls ${path} --output json`);
+      const output = await this.executeCLI(['fs', 'ls', path, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to list DBFS: ${error.message}`);
@@ -263,7 +284,7 @@ class DatabricksCLIMCPServer {
 
   async readDbfsFile(path) {
     try {
-      const output = await this.executeCLI(`databricks fs cat ${path}`);
+      const output = await this.executeCLI(['fs', 'cat', path]);
       return { path, content: output };
     } catch (error) {
       throw new Error(`Failed to read DBFS file: ${error.message}`);
@@ -272,7 +293,7 @@ class DatabricksCLIMCPServer {
 
   async uploadToDbfs(localPath, dbfsPath) {
     try {
-      const output = await this.executeCLI(`databricks fs cp ${localPath} ${dbfsPath} --overwrite`);
+      const output = await this.executeCLI(['fs', 'cp', localPath, dbfsPath, '--overwrite']);
       return { local_path: localPath, dbfs_path: dbfsPath, status: output };
     } catch (error) {
       throw new Error(`Failed to upload to DBFS: ${error.message}`);
@@ -281,7 +302,7 @@ class DatabricksCLIMCPServer {
 
   async downloadFromDbfs(dbfsPath, localPath) {
     try {
-      const output = await this.executeCLI(`databricks fs cp ${dbfsPath} ${localPath} --overwrite`);
+      const output = await this.executeCLI(['fs', 'cp', dbfsPath, localPath, '--overwrite']);
       return { dbfs_path: dbfsPath, local_path: localPath, status: output };
     } catch (error) {
       throw new Error(`Failed to download from DBFS: ${error.message}`);
@@ -292,11 +313,14 @@ class DatabricksCLIMCPServer {
   async executeSql(warehouseId, query) {
     try {
       // Create a temporary file for the query
-      const queryJson = JSON.stringify({
+      // Use the Databricks API endpoint for SQL statement execution
+      // since the CLI doesn't have a direct 'sql execute' command in this version
+      const payload = JSON.stringify({
         warehouse_id: warehouseId,
-        statement: query
+        statement: query,
+        wait_timeout: '30s'
       });
-      const output = await this.executeCLI(`databricks sql execute --warehouse-id ${warehouseId} --statement "${query.replace(/"/g, '\\"')}" --output json`);
+      const output = await this.executeCLI(['api', 'post', '/api/2.0/sql/statements', '--json', payload, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to execute SQL: ${error.message}`);
@@ -305,7 +329,7 @@ class DatabricksCLIMCPServer {
 
   async listSqlWarehouses() {
     try {
-      const output = await this.executeCLI('databricks sql warehouses list --output json');
+      const output = await this.executeCLI(['warehouses', 'list', '--output', 'json']);
       const result = JSON.parse(output);
       return result.warehouses || [];
     } catch (error) {
@@ -319,7 +343,7 @@ class DatabricksCLIMCPServer {
       // Create a temp file with content
       const tempFile = `/tmp/notebook_${Date.now()}.${language.toLowerCase()}`;
       require('fs').writeFileSync(tempFile, content);
-      const output = await this.executeCLI(`databricks workspace import ${tempFile} ${path} --language ${language} --format SOURCE --overwrite`);
+      const output = await this.executeCLI(['workspace', 'import', path, '--file', tempFile, '--language', language, '--format', 'SOURCE', '--overwrite']);
       require('fs').unlinkSync(tempFile);
       return { path, status: 'created' };
     } catch (error) {
@@ -329,7 +353,7 @@ class DatabricksCLIMCPServer {
 
   async deleteNotebook(path) {
     try {
-      const output = await this.executeCLI(`databricks workspace delete ${path}`);
+      const output = await this.executeCLI(['workspace', 'delete', path]);
       return { path, status: 'deleted' };
     } catch (error) {
       throw new Error(`Failed to delete notebook: ${error.message}`);
@@ -338,9 +362,14 @@ class DatabricksCLIMCPServer {
 
   async moveNotebook(sourcePath, destPath) {
     try {
-      const output = await this.executeCLI(`databricks workspace export ${sourcePath} --format SOURCE`);
-      await this.executeCLI(`databricks workspace import /dev/stdin ${destPath} --format SOURCE --overwrite`, output);
-      await this.executeCLI(`databricks workspace delete ${sourcePath}`);
+      const output = await this.executeCLI(['workspace', 'export', sourcePath, '--format', 'SOURCE']);
+      // Write exported content to temp file, then import from it
+      const fs = require('fs');
+      const tempFile = `/tmp/notebook_move_${Date.now()}.py`;
+      fs.writeFileSync(tempFile, output);
+      await this.executeCLI(['workspace', 'import', destPath, '--file', tempFile, '--language', 'PYTHON', '--format', 'SOURCE', '--overwrite']);
+      fs.unlinkSync(tempFile);
+      await this.executeCLI(['workspace', 'delete', sourcePath]);
       return { source: sourcePath, destination: destPath, status: 'moved' };
     } catch (error) {
       throw new Error(`Failed to move notebook: ${error.message}`);
@@ -350,7 +379,7 @@ class DatabricksCLIMCPServer {
   // Library Management
   async listClusterLibraries(clusterId) {
     try {
-      const output = await this.executeCLI(`databricks libraries cluster-status --cluster-id ${clusterId} --output json`);
+      const output = await this.executeCLI(['libraries', 'cluster-status', clusterId, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to list cluster libraries: ${error.message}`);
@@ -360,8 +389,8 @@ class DatabricksCLIMCPServer {
   async installLibrary(clusterId, librarySpec) {
     try {
       // librarySpec should be like: { pypi: { package: "pandas==1.3.0" } }
-      const specJson = JSON.stringify({ libraries: [librarySpec] });
-      const output = await this.executeCLI(`databricks libraries install --cluster-id ${clusterId} --json '${specJson}' --output json`);
+      const specJson = JSON.stringify({ cluster_id: clusterId, libraries: [librarySpec] });
+      const output = await this.executeCLI(['libraries', 'install', '--json', specJson, '--output', 'json']);
       return JSON.parse(output);
     } catch (error) {
       throw new Error(`Failed to install library: ${error.message}`);
@@ -375,7 +404,7 @@ class DatabricksCLIMCPServer {
       const path = require('path');
       
       // Export from Databricks
-      const content = await this.executeCLI(`databricks workspace export "${notebookPath}" --format ${format}`);
+      const content = await this.executeCLI(['workspace', 'export', notebookPath, '--format', format]);
       
       // Ensure directory exists
       const dir = path.dirname(localPath);
@@ -420,7 +449,7 @@ class DatabricksCLIMCPServer {
           }
           
           // Try to export existing notebook
-          const existingContent = await this.executeCLI(`databricks workspace export "${notebookPath}" --format SOURCE`);
+          const existingContent = await this.executeCLI(['workspace', 'export', notebookPath, '--format', 'SOURCE']);
           fs.writeFileSync(backupPath, existingContent);
           
           backupInfo = {
@@ -438,7 +467,7 @@ class DatabricksCLIMCPServer {
       }
       
       // Import the notebook
-      const output = await this.executeCLI(`databricks workspace import "${notebookPath}" --file "${localPath}" --language ${language} --format SOURCE --overwrite`);
+      const output = await this.executeCLI(['workspace', 'import', notebookPath, '--file', localPath, '--language', language, '--format', 'SOURCE', '--overwrite']);
       
       return {
         notebook_path: notebookPath,
@@ -641,7 +670,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'stop_cluster',
-          description: 'Stop a running Databricks cluster to save costs',
+          description: 'Stop (terminate) a running Databricks cluster to save costs. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -649,8 +678,12 @@ class DatabricksCLIMCPServer {
                 type: 'string',
                 description: 'The cluster ID to stop',
               },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
+              },
             },
-            required: ['cluster_id'],
+            required: ['cluster_id', 'confirm'],
           },
         },
         {
@@ -669,7 +702,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'restart_cluster',
-          description: 'Restart a Databricks cluster',
+          description: 'Restart a Databricks cluster. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -677,8 +710,12 @@ class DatabricksCLIMCPServer {
                 type: 'string',
                 description: 'The cluster ID to restart',
               },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
+              },
             },
-            required: ['cluster_id'],
+            required: ['cluster_id', 'confirm'],
           },
         },
         // Job Operations Tools
@@ -750,7 +787,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'upload_to_dbfs',
-          description: 'Upload a local file to DBFS',
+          description: 'Upload a local file to DBFS. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -762,8 +799,12 @@ class DatabricksCLIMCPServer {
                 type: 'string',
                 description: 'Destination DBFS path',
               },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
+              },
             },
-            required: ['local_path', 'dbfs_path'],
+            required: ['local_path', 'dbfs_path', 'confirm'],
           },
         },
         {
@@ -838,7 +879,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'delete_notebook',
-          description: 'Delete a notebook from the workspace',
+          description: 'Delete a notebook from the workspace. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -846,13 +887,17 @@ class DatabricksCLIMCPServer {
                 type: 'string',
                 description: 'Full path to the notebook to delete',
               },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
+              },
             },
-            required: ['path'],
+            required: ['path', 'confirm'],
           },
         },
         {
           name: 'move_notebook',
-          description: 'Move/rename a notebook in the workspace',
+          description: 'Move/rename a notebook in the workspace. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -864,8 +909,12 @@ class DatabricksCLIMCPServer {
                 type: 'string',
                 description: 'New notebook path',
               },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
+              },
             },
-            required: ['source_path', 'dest_path'],
+            required: ['source_path', 'dest_path', 'confirm'],
           },
         },
         // Library Management Tools
@@ -1114,6 +1163,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'stop_cluster': {
+            const blocked = this.requireConfirmation('stop_cluster', `Stop (terminate) cluster: ${args.cluster_id}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.stopCluster(args.cluster_id);
             return {
               content: [
@@ -1138,6 +1189,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'restart_cluster': {
+            const blocked = this.requireConfirmation('restart_cluster', `Restart cluster: ${args.cluster_id}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.restartCluster(args.cluster_id);
             return {
               content: [
@@ -1200,6 +1253,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'upload_to_dbfs': {
+            const blocked = this.requireConfirmation('upload_to_dbfs', `Upload ${args.local_path} to DBFS: ${args.dbfs_path}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.uploadToDbfs(args.local_path, args.dbfs_path);
             return {
               content: [
@@ -1266,6 +1321,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'delete_notebook': {
+            const blocked = this.requireConfirmation('delete_notebook', `Delete notebook: ${args.path}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.deleteNotebook(args.path);
             return {
               content: [
@@ -1278,6 +1335,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'move_notebook': {
+            const blocked = this.requireConfirmation('move_notebook', `Move notebook from ${args.source_path} to ${args.dest_path}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.moveNotebook(args.source_path, args.dest_path);
             return {
               content: [

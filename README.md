@@ -1,6 +1,6 @@
 # Databricks MCP Server for Cursor
 
-33 powerful tools to manage Databricks directly from Cursor IDE with AI assistance.
+30 powerful tools to manage Databricks directly from Cursor IDE with AI assistance.
 
 ## 🚀 Quick Setup
 
@@ -59,7 +59,7 @@ In Cursor, ask:
 - "List notebooks in /Users/"
 - "Show me available Databricks tools"
 
-## 🛠️ What You Get - 33 Tools
+## 🛠️ What You Get - 30 Tools
 
 ### 📖 Browse & Read (5)
 - `list_notebooks` - Browse folders
@@ -180,8 +180,8 @@ To add new tools:
 1. Add method in `server.js`:
 ```javascript
 async myNewTool(args) {
-  const result = await this.executeCLI('databricks ...');
-  return result;
+  const result = await this.executeCLI(['my-command', 'subcommand', args.param, '--output', 'json']);
+  return JSON.parse(result);
 }
 ```
 

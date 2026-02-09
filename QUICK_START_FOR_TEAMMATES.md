@@ -111,7 +111,7 @@ You should see your clusters! ✅
 ## 📚 Next Steps
 
 - **Read full docs:** `cat README.md`
-- **See all 33 tools:** Ask Cursor "What Databricks tools are available?"
+- **See all 30 tools:** Ask Cursor "What Databricks tools are available?"
 - **Learn to update:** Read `UPDATE_GUIDE.md`
 - **Add tools:** Read `CONTRIBUTING.md`
 

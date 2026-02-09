@@ -1,7 +1,7 @@
 {
   "name": "databricks-mcp-server",
   "version": "1.0.0",
-  "description": "Databricks MCP Server for Cursor - 33 tools for managing Databricks from Cursor IDE",
+  "description": "Databricks MCP Server for Cursor - 30 tools for managing Databricks from Cursor IDE",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

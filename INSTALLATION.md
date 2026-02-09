@@ -186,7 +186,7 @@ See `server.js` lines 361-444 for export/import examples.
 ## 🎯 Next Steps
 
 After setup:
-1. Read `README.md` for all 33 tools
+1. Read `README.md` for all 30 tools
 2. Try example workflows
 3. Start using AI to manage Databricks!
 

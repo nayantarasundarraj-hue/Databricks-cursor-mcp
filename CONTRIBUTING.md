@@ -230,7 +230,7 @@ async downloadSomething(remotePath, localPath) {
 
 ## 🎯 Ideas for New Tools
 
-### Already Have (33 tools)
+### Already Have (30 tools)
 - ✅ Notebooks: list, get, export, import
 - ✅ Clusters: list, start, stop, restart, status
 - ✅ Jobs: list, run, get details, get runs

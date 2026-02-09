@@ -18,7 +18,7 @@ git init
 git add .
 
 # First commit
-git commit -m "Initial commit: Databricks MCP Server with 33 tools"
+git commit -m "Initial commit: Databricks MCP Server with 30 tools"
 ```
 
 ---
@@ -29,7 +29,7 @@ git commit -m "Initial commit: Databricks MCP Server with 33 tools"
 
 1. Go to https://github.com/new
 2. Repository name: `databricks-mcp-server`
-3. Description: "Databricks MCP Server for Cursor - 33 AI-powered tools"
+3. Description: "Databricks MCP Server for Cursor - 30 AI-powered tools"
 4. **Private** (recommended) or Public
 5. **DO NOT** initialize with README (we already have one)
 6. Click "Create repository"
@@ -221,7 +221,7 @@ Add on GitHub for discoverability:
 
 Set on GitHub:
 ```
-Databricks MCP Server for Cursor - 33 AI-powered tools for managing 
+Databricks MCP Server for Cursor - 30 AI-powered tools for managing 
 notebooks, clusters, jobs, DBFS, SQL warehouses, and more.
 ```
 

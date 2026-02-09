@@ -4,7 +4,7 @@
 
 A complete, production-ready Git repository for managing Databricks from Cursor IDE with AI assistance.
 
-**33 powerful tools** for:
+**30 powerful tools** for:
 - 📖 Reading notebooks & clusters
 - ⚡ Executing notebooks with parameters
 - ✏️ Editing notebooks (with auto-backup!)
@@ -22,7 +22,7 @@ A complete, production-ready Git repository for managing Databricks from Cursor 
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `server.js` | 1,380 | Main MCP server with all 33 tools |
+| `server.js` | 1,380 | Main MCP server with all 30 tools |
 | `package.json` | 25 | Node.js dependencies |
 | `.gitignore` | 30 | Protects credentials from being committed |
 
@@ -132,7 +132,7 @@ git pull
 
 ### Code Complexity
 - **Server:** 1,380 lines JavaScript
-- **33 tools** implemented
+- **30 tools** implemented
 - **~42 lines** per tool (average)
 - **Well-documented** with inline comments
 
@@ -154,7 +154,7 @@ git pull
 
 ### Immediate Benefits
 1. **5-minute setup** (with guides)
-2. **33 tools** ready to use
+2. **30 tools** ready to use
 3. **AI-powered** Databricks management
 4. **Auto-backup** for notebook edits
 5. **Cost savings** (stop idle clusters)
@@ -200,7 +200,7 @@ git pull
 ## 📈 Growth Path
 
 ### Current (v1.0)
-- 33 tools
+- 30 tools
 - Core operations covered
 - Full documentation
 - Team-ready
@@ -236,7 +236,7 @@ All additions follow same pattern in `CONTRIBUTING.md`!
 ## 🚀 Deployment Status
 
 ### ✅ Complete
-- [x] All 33 tools implemented
+- [x] All 30 tools implemented
 - [x] Documentation written
 - [x] Security hardened
 - [x] Git repository initialized
@@ -320,7 +320,7 @@ All additions follow same pattern in `CONTRIBUTING.md`!
 
 A **production-ready, team-scale** Databricks MCP server with:
 
-1. **Complete functionality** (33 tools)
+1. **Complete functionality** (30 tools)
 2. **Industrial-grade docs** (7 guides)
 3. **Security best practices** (no secrets)
 4. **Easy collaboration** (Git-based)

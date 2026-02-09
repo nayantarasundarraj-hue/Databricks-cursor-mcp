@@ -3,7 +3,7 @@
 ## ✅ What's Already Done
 
 I've created your complete Git repository with:
-- ✅ All 33 tools in `server.js`
+- ✅ All 30 tools in `server.js`
 - ✅ Complete documentation (7 guide files)
 - ✅ `.gitignore` (protects credentials)
 - ✅ `package.json` with dependencies
@@ -28,7 +28,7 @@ git config --global user.email "your.email@affirm.com"
 ```bash
 cd ~/databricks-mcp-server
 
-git commit -m "Initial commit: Databricks MCP Server with 33 tools"
+git commit -m "Initial commit: Databricks MCP Server with 30 tools"
 ```
 
 ### Step 3: Create GitHub Repository
@@ -37,7 +37,7 @@ git commit -m "Initial commit: Databricks MCP Server with 33 tools"
 
 1. Go to https://github.com/new
 2. Repository name: `databricks-mcp-server`
-3. Description: "Databricks MCP Server for Cursor - 33 AI-powered tools"
+3. Description: "Databricks MCP Server for Cursor - 30 AI-powered tools"
 4. **Private** (recommended for work projects)
 5. **DO NOT** check "Add README" (we already have one)
 6. Click **Create repository**
@@ -107,7 +107,7 @@ databricks auth login --profile dev --host https://affirm-prod-us.cloud.databric
 See INSTALLATION.md or QUICK_START_FOR_TEAMMATES.md in the repo
 
 **What you get:**
-- ✅ 33 AI-powered tools
+- ✅ 30 AI-powered tools
 - ✅ Edit notebooks with auto-backup
 - ✅ Manage clusters & jobs
 - ✅ Run queries & notebooks
@@ -124,7 +124,7 @@ Here's what you're sharing:
 
 ```
 databricks-mcp-server/
-├── server.js                           # 🌟 Main server (1,380 lines, 33 tools)
+├── server.js                           # 🌟 Main server (1,380 lines, 30 tools)
 ├── package.json                        # 📦 Dependencies
 ├── .gitignore                          # 🔒 Protects secrets
 │
@@ -316,7 +316,7 @@ git config --global user.name "Your Name"
 
 # 2. Commit
 cd ~/databricks-mcp-server
-git commit -m "Initial commit: Databricks MCP Server with 33 tools"
+git commit -m "Initial commit: Databricks MCP Server with 30 tools"
 
 # 3. Create GitHub repo (via website: https://github.com/new)
 
