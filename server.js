@@ -12,6 +12,12 @@ const {
   ListToolsRequestSchema,
 } = require('@modelcontextprotocol/sdk/types.js');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const SENSITIVE_PATHS = ['.ssh', '.gnupg', '.bashrc', '.bash_profile', '.zshrc', '.profile', '.npmrc', '.env', '.gitconfig', '.databrickscfg'];
+const VALID_LANGUAGES = ['PYTHON', 'SQL', 'SCALA', 'R'];
+const SQL_DANGEROUS_KEYWORDS = /\b(DROP|DELETE|TRUNCATE|INSERT|UPDATE|MERGE|ALTER|GRANT|REVOKE|COPY\s+INTO|EXECUTE\s+IMMEDIATE|CREATE|REPLACE)\b/i;
 
 class DatabricksCLIMCPServer {
   constructor() {
@@ -46,6 +52,32 @@ class DatabricksCLIMCPServer {
         }, null, 2),
       }],
     };
+  }
+
+  validateLocalPath(localPath) {
+    const resolved = path.resolve(localPath);
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '/';
+    if (!resolved.startsWith(homeDir) && !resolved.startsWith('/tmp')) {
+      throw new Error(`Path rejected: ${resolved} is outside the allowed directories (home directory or /tmp).`);
+    }
+    for (const sensitive of SENSITIVE_PATHS) {
+      if (resolved.includes(`/${sensitive}`) || resolved.endsWith(`/${sensitive}`)) {
+        throw new Error(`Path rejected: writing to ${sensitive} is not allowed.`);
+      }
+    }
+    return resolved;
+  }
+
+  sanitizeError(error) {
+    let msg = error.message || 'Unknown error';
+    msg = msg.replace(/--profile\s+\S+/g, '--profile ***');
+    msg = msg.replace(/Bearer\s+\S+/g, 'Bearer ***');
+    msg = msg.replace(/token:\s*\S+/gi, 'token: ***');
+    msg = msg.replace(/https?:\/\/[^\s]+/g, '<redacted-url>');
+    if (msg.length > 300) {
+      msg = msg.substring(0, 300) + '... (truncated)';
+    }
+    return msg;
   }
 
   async executeCLI(args) {
@@ -302,7 +334,8 @@ class DatabricksCLIMCPServer {
 
   async downloadFromDbfs(dbfsPath, localPath) {
     try {
-      const output = await this.executeCLI(['fs', 'cp', dbfsPath, localPath, '--overwrite']);
+      const resolved = this.validateLocalPath(localPath);
+      const output = await this.executeCLI(['fs', 'cp', dbfsPath, resolved, '--overwrite']);
       return { dbfs_path: dbfsPath, local_path: localPath, status: output };
     } catch (error) {
       throw new Error(`Failed to download from DBFS: ${error.message}`);
@@ -338,14 +371,17 @@ class DatabricksCLIMCPServer {
   }
 
   // Workspace Management
-  async createNotebook(path, language = 'PYTHON', content = '') {
+  async createNotebook(notebookPath, language = 'PYTHON', content = '') {
     try {
-      // Create a temp file with content
-      const tempFile = `/tmp/notebook_${Date.now()}.${language.toLowerCase()}`;
-      require('fs').writeFileSync(tempFile, content);
-      const output = await this.executeCLI(['workspace', 'import', path, '--file', tempFile, '--language', language, '--format', 'SOURCE', '--overwrite']);
-      require('fs').unlinkSync(tempFile);
-      return { path, status: 'created' };
+      const lang = language.toUpperCase();
+      if (!VALID_LANGUAGES.includes(lang)) {
+        throw new Error(`Invalid language: ${language}. Must be one of: ${VALID_LANGUAGES.join(', ')}`);
+      }
+      const tempFile = `/tmp/notebook_${Date.now()}.${lang.toLowerCase()}`;
+      fs.writeFileSync(tempFile, content);
+      const output = await this.executeCLI(['workspace', 'import', notebookPath, '--file', tempFile, '--language', lang, '--format', 'SOURCE', '--overwrite']);
+      fs.unlinkSync(tempFile);
+      return { path: notebookPath, status: 'created' };
     } catch (error) {
       throw new Error(`Failed to create notebook: ${error.message}`);
     }
@@ -363,8 +399,6 @@ class DatabricksCLIMCPServer {
   async moveNotebook(sourcePath, destPath) {
     try {
       const output = await this.executeCLI(['workspace', 'export', sourcePath, '--format', 'SOURCE']);
-      // Write exported content to temp file, then import from it
-      const fs = require('fs');
       const tempFile = `/tmp/notebook_move_${Date.now()}.py`;
       fs.writeFileSync(tempFile, output);
       await this.executeCLI(['workspace', 'import', destPath, '--file', tempFile, '--language', 'PYTHON', '--format', 'SOURCE', '--overwrite']);
@@ -400,20 +434,16 @@ class DatabricksCLIMCPServer {
   // Export/Import Operations
   async exportNotebook(notebookPath, localPath, format = 'SOURCE') {
     try {
-      const fs = require('fs');
-      const path = require('path');
+      const resolved = this.validateLocalPath(localPath);
       
-      // Export from Databricks
       const content = await this.executeCLI(['workspace', 'export', notebookPath, '--format', format]);
       
-      // Ensure directory exists
-      const dir = path.dirname(localPath);
+      const dir = path.dirname(resolved);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
       
-      // Write to local file
-      fs.writeFileSync(localPath, content);
+      fs.writeFileSync(resolved, content);
       
       return {
         notebook_path: notebookPath,
@@ -429,8 +459,7 @@ class DatabricksCLIMCPServer {
 
   async importNotebook(localPath, notebookPath, language = 'PYTHON', createBackup = true) {
     try {
-      const fs = require('fs');
-      const path = require('path');
+      const resolved = this.validateLocalPath(localPath);
       
       let backupInfo = null;
       
@@ -440,7 +469,7 @@ class DatabricksCLIMCPServer {
           // Try to export existing notebook as backup
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
           const notebookName = path.basename(notebookPath, path.extname(notebookPath));
-          const backupDir = path.join(path.dirname(localPath), 'databricks_backups');
+          const backupDir = path.join(path.dirname(resolved), 'databricks_backups');
           const backupPath = path.join(backupDir, `${notebookName}_backup_${timestamp}.py`);
           
           // Ensure backup directory exists
@@ -467,11 +496,11 @@ class DatabricksCLIMCPServer {
       }
       
       // Import the notebook
-      const output = await this.executeCLI(['workspace', 'import', notebookPath, '--file', localPath, '--language', language, '--format', 'SOURCE', '--overwrite']);
+      const output = await this.executeCLI(['workspace', 'import', notebookPath, '--file', resolved, '--language', language, '--format', 'SOURCE', '--overwrite']);
       
       return {
         notebook_path: notebookPath,
-        local_path: localPath,
+        local_path: resolved,
         language: language,
         status: 'imported',
         backup_info: backupInfo,
@@ -577,7 +606,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'run_notebook',
-          description: 'Execute a Databricks notebook on a cluster. Returns run ID for tracking.',
+          description: 'Execute a Databricks notebook on a cluster. Returns run ID for tracking. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -592,6 +621,10 @@ class DatabricksCLIMCPServer {
               notebook_params: {
                 type: 'object',
                 description: 'Optional parameters to pass to the notebook as key-value pairs',
+              },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
               },
             },
             required: ['notebook_path', 'cluster_id'],
@@ -721,7 +754,7 @@ class DatabricksCLIMCPServer {
         // Job Operations Tools
         {
           name: 'run_job',
-          description: 'Trigger an existing Databricks job',
+          description: 'Trigger an existing Databricks job. REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -732,6 +765,10 @@ class DatabricksCLIMCPServer {
               notebook_params: {
                 type: 'object',
                 description: 'Optional parameters to pass to the job',
+              },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
               },
             },
             required: ['job_id'],
@@ -828,7 +865,7 @@ class DatabricksCLIMCPServer {
         // SQL Operations Tools
         {
           name: 'execute_sql',
-          description: 'Execute a SQL query on a SQL warehouse',
+          description: 'Execute a SQL query on a SQL warehouse. Read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) run immediately. DDL/DML statements (DROP, DELETE, INSERT, ALTER, etc.) REQUIRE explicit user confirmation via confirm: true.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -839,6 +876,10 @@ class DatabricksCLIMCPServer {
               query: {
                 type: 'string',
                 description: 'SQL query to execute',
+              },
+              confirm: {
+                type: 'boolean',
+                description: 'Required for non-read-only SQL (DDL/DML). Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
               },
             },
             required: ['warehouse_id', 'query'],
@@ -934,7 +975,7 @@ class DatabricksCLIMCPServer {
         },
         {
           name: 'install_library',
-          description: 'Install a library on a cluster (PyPI, Maven, or JAR)',
+          description: 'Install a library on a cluster (PyPI, Maven, or JAR). REQUIRES explicit user confirmation (confirm: true). The AI must ask the user before executing.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -945,6 +986,10 @@ class DatabricksCLIMCPServer {
               library_spec: {
                 type: 'object',
                 description: 'Library specification, e.g., {"pypi": {"package": "pandas==1.3.0"}}',
+              },
+              confirm: {
+                type: 'boolean',
+                description: 'Must be set to true after getting explicit user approval. Do NOT set this to true without asking the user first.',
               },
             },
             required: ['cluster_id', 'library_spec'],
@@ -1086,6 +1131,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'run_notebook': {
+            const blocked = this.requireConfirmation('run_notebook', `Run notebook: ${args.notebook_path} on cluster: ${args.cluster_id}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.runNotebook(
               args.notebook_path,
               args.cluster_id,
@@ -1204,6 +1251,8 @@ class DatabricksCLIMCPServer {
 
           // Job Operations
           case 'run_job': {
+            const blocked = this.requireConfirmation('run_job', `Trigger job: ${args.job_id}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.runJob(args.job_id, args.notebook_params || {});
             return {
               content: [
@@ -1280,6 +1329,11 @@ class DatabricksCLIMCPServer {
 
           // SQL Operations
           case 'execute_sql': {
+            const queryTrimmed = args.query.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '').trim();
+            if (SQL_DANGEROUS_KEYWORDS.test(queryTrimmed)) {
+              const blocked = this.requireConfirmation('execute_sql', `Execute non-read-only SQL: ${args.query.substring(0, 100)}...`, args.confirm);
+              if (blocked) return blocked;
+            }
             const results = await this.executeSql(args.warehouse_id, args.query);
             return {
               content: [
@@ -1362,6 +1416,8 @@ class DatabricksCLIMCPServer {
           }
 
           case 'install_library': {
+            const blocked = this.requireConfirmation('install_library', `Install library on cluster: ${args.cluster_id}`, args.confirm);
+            if (blocked) return blocked;
             const results = await this.installLibrary(args.cluster_id, args.library_spec);
             return {
               content: [
@@ -1423,11 +1479,12 @@ class DatabricksCLIMCPServer {
             throw new Error(`Unknown tool: ${name}`);
         }
       } catch (error) {
+        console.error(`[MCP Error] ${error.message}`);
         return {
           content: [
             {
               type: 'text',
-              text: `Error: ${error.message}`,
+              text: `Error: ${this.sanitizeError(error)}`,
             },
           ],
           isError: true,
