@@ -142,10 +142,24 @@ In Cursor, ask:
 
 ## 🔒 Safety Features
 
-Every notebook edit:
-- ✅ Automatic local backup (timestamped)
-- ✅ New Databricks revision (UI rollback)
-- ✅ No data loss possible
+- ✅ **Path validation** — all local file operations are restricted to your home directory and /tmp; sensitive paths (.ssh, .aws, .env, .kube, etc.) are blocked
+- ✅ **Shell injection prevention** — uses `execFileSync` (not `execSync`), no shell interpretation
+- ✅ **Human-in-the-loop (HIL)** — 8 operations require explicit user confirmation: `run_notebook`, `run_job`, `delete_notebook`, `move_notebook`, `stop_cluster`, `restart_cluster`, `upload_to_dbfs`, `install_library`
+- ✅ **SQL blocklist** — DDL/DML/Databricks-specific statements (DROP, DELETE, INSERT, COPY INTO, CALL, VACUUM, etc.) require confirmation; read-only SQL runs immediately
+- ✅ **Error sanitization** — OAuth tokens, URLs, and internal paths are stripped from error messages
+- ✅ **Language validation** — only PYTHON, SQL, SCALA, R accepted for notebook creation
+- ✅ **Pinned dependencies** — SDK version locked to prevent supply chain attacks
+- ✅ Automatic local backup on notebook edits (timestamped)
+- ✅ New Databricks revision on import (UI rollback)
+
+### ⚠️ Agentic Deployment Warning
+
+This MCP exposes both read and write tools in a single server. In an agentic context where the AI processes untrusted content (web pages, Slack messages, RAG documents, emails), a prompt injection could chain read operations (e.g., `get_notebook`, `read_dbfs_file`) with write/exec operations (e.g., `execute_sql`, `upload_to_dbfs`). 
+
+**Recommendations:**
+- Do NOT co-install this MCP in an agent that also has tools reading untrusted external content (web fetch, Slack search, RAG over external docs, mailbox readers) without understanding this risk.
+- Always review HIL confirmation prompts carefully — they show the full operation details including file paths and SQL queries.
+- For high-security environments, consider disabling write tools via `disabledTools` in your Cursor MCP config and only enabling the read-only subset.
 
 ## 🐛 Troubleshooting
 

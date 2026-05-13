@@ -15,9 +15,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const SENSITIVE_PATHS = ['.ssh', '.gnupg', '.bashrc', '.bash_profile', '.zshrc', '.profile', '.npmrc', '.env', '.gitconfig', '.databrickscfg'];
+const SENSITIVE_PATHS = ['.ssh', '.gnupg', '.bashrc', '.bash_profile', '.zshrc', '.profile', '.npmrc', '.env', '.gitconfig', '.databrickscfg', '.aws', '.config/gcloud', '.kube'];
 const VALID_LANGUAGES = ['PYTHON', 'SQL', 'SCALA', 'R'];
-const SQL_DANGEROUS_KEYWORDS = /\b(DROP|DELETE|TRUNCATE|INSERT|UPDATE|MERGE|ALTER|GRANT|REVOKE|COPY\s+INTO|EXECUTE\s+IMMEDIATE|CREATE|REPLACE)\b/i;
+const SQL_DANGEROUS_KEYWORDS = /\b(DROP|DELETE|TRUNCATE|INSERT|UPDATE|MERGE|ALTER|GRANT|REVOKE|COPY\s+INTO|EXECUTE\s+IMMEDIATE|CREATE|REPLACE|CALL|PUT|GET|REMOVE|UNDROP|USE|SET|OPTIMIZE|VACUUM|RESTORE|CLONE|RENAME|REFRESH)\b/i;
 
 class DatabricksCLIMCPServer {
   constructor() {
@@ -325,8 +325,9 @@ class DatabricksCLIMCPServer {
 
   async uploadToDbfs(localPath, dbfsPath) {
     try {
-      const output = await this.executeCLI(['fs', 'cp', localPath, dbfsPath, '--overwrite']);
-      return { local_path: localPath, dbfs_path: dbfsPath, status: output };
+      const resolved = this.validateLocalPath(localPath);
+      const output = await this.executeCLI(['fs', 'cp', resolved, dbfsPath, '--overwrite']);
+      return { local_path: resolved, dbfs_path: dbfsPath, status: output };
     } catch (error) {
       throw new Error(`Failed to upload to DBFS: ${error.message}`);
     }
@@ -1331,7 +1332,7 @@ class DatabricksCLIMCPServer {
           case 'execute_sql': {
             const queryTrimmed = args.query.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '').trim();
             if (SQL_DANGEROUS_KEYWORDS.test(queryTrimmed)) {
-              const blocked = this.requireConfirmation('execute_sql', `Execute non-read-only SQL: ${args.query.substring(0, 100)}...`, args.confirm);
+              const blocked = this.requireConfirmation('execute_sql', `Execute non-read-only SQL on warehouse ${args.warehouse_id}:\n${args.query}`, args.confirm);
               if (blocked) return blocked;
             }
             const results = await this.executeSql(args.warehouse_id, args.query);
@@ -1416,7 +1417,7 @@ class DatabricksCLIMCPServer {
           }
 
           case 'install_library': {
-            const blocked = this.requireConfirmation('install_library', `Install library on cluster: ${args.cluster_id}`, args.confirm);
+            const blocked = this.requireConfirmation('install_library', `Install library on cluster ${args.cluster_id}: ${JSON.stringify(args.library_spec)}`, args.confirm);
             if (blocked) return blocked;
             const results = await this.installLibrary(args.cluster_id, args.library_spec);
             return {
